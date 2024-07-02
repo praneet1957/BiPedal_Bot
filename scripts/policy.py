@@ -15,9 +15,10 @@ class Policy:
         self.tiles     = 25
         self.discountFactor = 0.7
         self.epochs    = 5
-
-
-
+        self.actorOptimizer = 4     #define using Adam
+        self.networkOptimizer = 1   #define using Adam
+        self.clip = 0.1
+        self.horizonTime = 4
 
 
     def valueFunction(self):
@@ -55,7 +56,7 @@ class Policy:
 
             # run for batchTime 
             for t in range(self.batchTime):
-                action   = self.generateAction(state)
+                action          = self.generateAction(state)
                 stateNew,reward = self.env.step(state,action)
                 probAction = self.getProbability(state,action)
                 data.append([state,action,probAction,stateNew,reward,probAction])
@@ -72,27 +73,38 @@ class Policy:
             # Tile Coding 
 
             # Every state is a combination of 4 tiling for 4 motors
-            for t in range(self.batchTime):
-                valueFunction = np.zeros(100)
-                state  = data[t][0]
-                
-                for p in range(0,self.batchTime-t-1,1):
-                    reward = data[p][3]
-                    valueFunction[state] += reward*self.discountFactor**p
+            visitedState = [0]*self.numStates
+            sumVisitedState = 0
 
-                terminalState = data[self.batchTime-t][0]
-                valueFunction[state] += stateValueNetwork(terminalState)*self.discountFactor**(self.batchTime-t)
+            for t in range(self.batchTime):
+                valueFunctionTarget = 0
+                state  = data[t][0]
+
+                # if sumVisitedState == self.numStates:
+                #     break
+                # else:
+                #     if visitedState[state]==0:
+                #         visitedState[state] = 1
+                #         sumVisitedState += 1
+
+                maxTime = max(self.horizonTime + t, self.batchTime)
+                for p in range(t,maxTime,1):
+                    reward = data[p][3]
+                    valueFunctionTarget += reward*self.discountFactor**(p-t)
+
+                lastState = data[self.batchTime-t][0]
+                valueFunctionTarget += stateValueNetwork(lastState)*self.discountFactor**(maxTime-t)
 
                 #need to see whether to normalize the advantageEst
-                advantageEst = valueFunction[state] -  stateValueNetwork(state)*self.discountFactor**(self.batchTime-t)
+                advantageEst = valueFunctionTarget -  stateValueNetwork(state)*self.discountFactor**(self.batchTime-t)
 
                 #Reshape valuefunction as tensors
-                valueFunction = torch.tensor(valueFunction, dtype=torch.float)
-                advantageEst  = torch.tensor(advantageEst, dtype=torch.float)
-                probActionTensor = torch.tensor(data[:][2],dtype=float)
+                valueFunctionTarget = torch.tensor(valueFunctionTarget, dtype=torch.float)
+                advantageEst        = torch.tensor(advantageEst, dtype=torch.float)
+                probActionTensor    = torch.tensor(data[:][2],dtype=float)
 
                 # append training data
-                traindata.append([valueFunction, advantageEst])
+                traindata.append([valueFunctionTarget, advantageEst])
 
 
             for e in range(self.epochs):
@@ -104,7 +116,36 @@ class Policy:
                 ratios = torch.exp(curr_log_probs - probActionTensor)
 
                 # Calculate losses
-                
+
+                # Clip loss
+                lossClipTerm1  = ratios*advantageEst
+                lossClipTerm2  = torch.clamp(ratios, 1 - self.clip, 1 + self.clip)*advantageEst
+                lossClip       = (-torch.min(lossClipTerm1,lossClipTerm2)).mean()
+
+                #loss of value function when approximated as NN
+                lossValueFunction = nn.MSELoss()
+                lossValueNetwork  = lossValueFunction(stateValueNetwork, valueFunctionTarget)
+
+                #Use the defined optimizer to go back in both clip loss + value network loss
+                self.actorOptimizer.zero_grad()
+                lossClip.backward(retain_graph=True)
+                self.actorOptimizer.step()
+
+
+                self.networkOptimizer.zero_grad()
+                lossValueNetwork.backward(retain_graph= True)
+                self.networkOptimizer.step()
+
+
+
+
+
+
+
+
+
+
+
 
 
 
