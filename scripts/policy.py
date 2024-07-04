@@ -4,9 +4,12 @@ import os
 import torch
 from torch import nn
 import torch.nn.functional as F
+from torch.distributions import Normal
+from torch.distributions import MultivariateNormal
+
 
 class Policy:
-    def __init__(self,agent):
+    def __init__(self,agent,network):
         self.numStates  = 0
         self.numActions = #e
         self.agent      = agent  #Either  policy
@@ -19,27 +22,54 @@ class Policy:
         self.networkOptimizer = 1   #define using Adam
         self.clip = 0.1
         self.horizonTime = 4
-
-
-    def valueFunction(self):
-        #Calculate the value function of current policy
+        self.stateValueNetwork = network
 
 
     def generateAction(self, state):
         # generate action for all motors
 
-    def getProbability(self, state, action):
-        # get probability of chosing a certain action when in a state
+        # policy defined in agent.py
+        actionParamsMean = self.agent.evaluateMean(state)
+        actionParamsVar = self.agent.evaluateVaraiance(state)
 
 
-    def calculateObj(self):
-        # calculate the clip and value network 
+        # define the distribution based on actions to be taken from particular state
+        Covariance = torch.diag(actionParamsVar)
+        disMotors = MultivariateNormal(actionParamsMean, Covariance)
 
-    def computeGrad(self):
-        # compute gradient
+        # disMot1 = Normal(actionParamsMean[0],actionParamsVar[0])
+        # disMot2 = Normal(actionParamsMean[1],actionParamsVar[1])
+        # disMot3 = Normal(actionParamsMean[2],actionParamsVar[2])
+        # disMot4 = Normal(actionParamsMean[3],actionParamsVar[3])
 
-    def updateParam(self):
-        # policy parameter update
+        # sample the action from distribution
+
+        # Act1 =  disMot1.sample()
+        # Act2 =  disMot2.sample()
+        # Act3 =  disMot3.sample()
+        # Act4 =  disMot4.sample()
+        Action = disMotors.sample()
+
+        # calculate log of probability of chosing the action
+
+        probAction = disMotors.log_prob(Action)
+
+        return Action, probAction
+
+
+    # def getProbability(self, state, action):
+    #     # get probability of chosing a certain action when in a state
+
+
+    # def calculateObj(self):
+    #     # calculate the clip and value network 
+
+    # def computeGrad(self):
+    #     # compute gradient
+
+    # def updateParam(self):
+    #     # policy parameter update
+
 
     def evaluatePolicy(self):
         # the final part of code to run the policy
@@ -56,16 +86,17 @@ class Policy:
 
             # run for batchTime 
             for t in range(self.batchTime):
-                action          = self.generateAction(state)
+                action, probAction  = self.generateAction(state)
                 stateNew,reward = self.env.step(state,action)
-                probAction = self.getProbability(state,action)
-                data.append([state,action,probAction,stateNew,reward,probAction])
+                # probAction = self.getProbability(state,action)
+                data.append([state,action,probAction,stateNew,reward])
                 state = stateNew
 
 
             globalTime += self.batchTime
             # Reshape data as tensors
 
+            # Need to check if this is necessary
 
             # Value function
             
@@ -92,39 +123,54 @@ class Policy:
                     reward = data[p][3]
                     valueFunctionTarget += reward*self.discountFactor**(p-t)
 
-                lastState = data[self.batchTime-t][0]
-                valueFunctionTarget += stateValueNetwork(lastState)*self.discountFactor**(maxTime-t)
+                lastState = data[maxTime][0]
+                valueFunctionTarget += self.stateValueNetwork(lastState)*self.discountFactor**(maxTime-t)
 
                 #need to see whether to normalize the advantageEst
-                advantageEst = valueFunctionTarget -  stateValueNetwork(state)*self.discountFactor**(self.batchTime-t)
-
-                #Reshape valuefunction as tensors
-                valueFunctionTarget = torch.tensor(valueFunctionTarget, dtype=torch.float)
-                advantageEst        = torch.tensor(advantageEst, dtype=torch.float)
-                probActionTensor    = torch.tensor(data[:][2],dtype=float)
+                advantageEst = valueFunctionTarget -  self.stateValueNetwork(state)
 
                 # append training data
                 traindata.append([valueFunctionTarget, advantageEst])
+            
+            #Reshape valuefunction as tensors
+            valueFunctionTargetTensor = torch.tensor(traindata[:][0], dtype=torch.float)
+            advantageEstTensor        = torch.tensor(traindata[:][1], dtype=torch.float)
+            probActionTensor          = torch.tensor(traindata[:][2], dtype=float)
 
 
             for e in range(self.epochs):
-                #need to calculate phi(a_t/s_t)
+                # current log probs vary as the parameters update
 
-                #curr log probs
+                #initialize env
+                self.env.initialize()
+                state = self.env.state
+
+                if e!=0:
+                    # run for batchTime 
+                    for t in range(self.batchTime):
+                        actionNew, probActionNew          = self.generateAction(state)
+                        stateNewUpdate,rewardNew = self.env.step(state,actionNew)
+                        # probActionNew = self.getProbability(state,actionNew)
+                        data.append([state,actionNew,probActionNew,stateNewUpdate,rewardNew])
+                        state = stateNewUpdate
+                    probActionTensorNew  = torch.tensor(data[:][2], dtype=float)
+                else:
+                    probActionTensorNew = probActionTensor
+                
 
                 # Calculate ratios
-                ratios = torch.exp(curr_log_probs - probActionTensor)
+                ratios = torch.exp(probActionTensorNew - probActionTensor)
 
                 # Calculate losses
 
                 # Clip loss
-                lossClipTerm1  = ratios*advantageEst
-                lossClipTerm2  = torch.clamp(ratios, 1 - self.clip, 1 + self.clip)*advantageEst
+                lossClipTerm1  = ratios*advantageEstTensor
+                lossClipTerm2  = torch.clamp(ratios, 1 - self.clip, 1 + self.clip)*advantageEstTensor
                 lossClip       = (-torch.min(lossClipTerm1,lossClipTerm2)).mean()
 
                 #loss of value function when approximated as NN
                 lossValueFunction = nn.MSELoss()
-                lossValueNetwork  = lossValueFunction(stateValueNetwork, valueFunctionTarget)
+                lossValueNetwork  = lossValueFunction(self.stateValueNetwork, valueFunctionTargetTensor)
 
                 #Use the defined optimizer to go back in both clip loss + value network loss
                 self.actorOptimizer.zero_grad()
