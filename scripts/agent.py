@@ -6,7 +6,7 @@ import torch.nn.functional as F
 class actionFunction:
     def __init__(self):
         #input layer is 4 for 4 motors
-        self.layer1 = nn.Linear(4,32) 
+        self.layer1 = nn.Linear(6,32) 
         self.layer2 = nn.Linear(32,64)
         self.layer3 = nn.Linear(64,4)
         #output layer is the value function
@@ -25,9 +25,9 @@ class actionFunction:
         # convert state to tensor
         stateTensor = torch.tensor(state, dtype=float)
 
-        # to ensure variance is positive
+        # relu to ensure variance is positive
         activationVariance1 = F.sigmoid(self.layer1(stateTensor))
-        activationVariance2 = F.sigmoid(self.layer2(activationVariance1))
+        activationVariance2 = F.relu(self.layer2(activationVariance1))
         activationVariance3 = F.relu(self.layer3(activationVariance2))
 
         return activationVariance3

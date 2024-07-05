@@ -9,7 +9,7 @@ from torch.distributions import MultivariateNormal
 
 
 class Policy:
-    def __init__(self,agent,network):
+    def __init__(self,agent,network, environment):
         self.numStates  = 0
         self.numActions = #e
         self.agent      = agent  #Either  policy
@@ -23,6 +23,7 @@ class Policy:
         self.clip = 0.1
         self.horizonTime = 4
         self.stateValueNetwork = network
+        self.env = environment
 
 
     def generateAction(self, state):
@@ -104,6 +105,9 @@ class Policy:
             # Tile Coding 
 
             # Every state is a combination of 4 tiling for 4 motors
+            # Neglect tiling
+            # Every state is a combination of 4 motors + z (height) + x(longitudinal distance)
+            
             visitedState = [0]*self.numStates
             sumVisitedState = 0
 
@@ -141,6 +145,8 @@ class Policy:
             for e in range(self.epochs):
                 # current log probs vary as the parameters update
 
+                epochData = [] 
+
                 #initialize env
                 self.env.initialize()
                 state = self.env.state
@@ -148,12 +154,12 @@ class Policy:
                 if e!=0:
                     # run for batchTime 
                     for t in range(self.batchTime):
-                        actionNew, probActionNew          = self.generateAction(state)
+                        actionNew, probActionNew = self.generateAction(state)
                         stateNewUpdate,rewardNew = self.env.step(state,actionNew)
                         # probActionNew = self.getProbability(state,actionNew)
-                        data.append([state,actionNew,probActionNew,stateNewUpdate,rewardNew])
+                        epochData.append([state,actionNew,probActionNew,stateNewUpdate,rewardNew])
                         state = stateNewUpdate
-                    probActionTensorNew  = torch.tensor(data[:][2], dtype=float)
+                    probActionTensorNew  = torch.tensor(epochData[:][2], dtype=float)
                 else:
                     probActionTensorNew = probActionTensor
                 
