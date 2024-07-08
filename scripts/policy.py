@@ -14,10 +14,10 @@ class Policy:
         self.numActions = #e
         self.agent      = agent  #Either  policy
         self.batchTime  = 10
-        self.motors    = 4
-        self.tiles     = 25
+        self.motors     = 4
+        self.tiles      = 25
         self.discountFactor = 0.7
-        self.epochs    = 5
+        self.epochs     = 5
         self.actorOptimizer = 4     #define using Adam
         self.networkOptimizer = 1   #define using Adam
         self.clip = 0.1
@@ -107,7 +107,7 @@ class Policy:
             # Every state is a combination of 4 tiling for 4 motors
             # Neglect tiling
             # Every state is a combination of 4 motors + z (height) + x(longitudinal distance)
-            
+
             visitedState = [0]*self.numStates
             sumVisitedState = 0
 
