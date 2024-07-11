@@ -10,8 +10,8 @@ from torch.distributions import MultivariateNormal
 
 class Policy:
     def __init__(self,agent,network, environment):
-        self.numStates  = 0
-        self.numActions = #e
+        self.numStates  = 6
+        self.numActions = 4
         self.agent      = agent  #Either  policy
         self.batchTime  = 10
         self.motors     = 4

@@ -69,10 +69,16 @@
     </worldbody>
 
    <actuator>
-        <motor name="torqueL0" joint="hipLeft"  gear="1" />
+        <motor name="torqueL0" joint="hipLeft"   gear="1" />
         <motor name="torqueL1" joint="kneeLeft"  gear="1" />
         <motor name="torqueR0" joint="hipRight"  gear="1" />
         <motor name="torqueR1" joint="kneeRight"  gear="1" />
    </actuator>
+
+    <!-- <sensor>
+        <accelerometer name="imu_accel" site="torso1"/>
+        <gyro name="imu_gyro"           site="torso1"/>
+        <velocimeter name="velocimeter" site="torso1"/>
+    </sensor> -->
 
 </mujoco>

@@ -6,7 +6,7 @@ import torch.nn.functional as F
 class actionFunction:
     def __init__(self):
         #input layer is 4 for 4 motors
-        self.layer1 = nn.Linear(6,32) 
+        self.layer1 = nn.Linear(7,32) 
         self.layer2 = nn.Linear(32,64)
         self.layer3 = nn.Linear(64,4)
         #output layer is the value function
