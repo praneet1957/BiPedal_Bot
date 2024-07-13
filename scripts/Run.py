@@ -29,35 +29,44 @@ scene   = mj.MjvScene(model, maxgeom=10000)
 context = mj.MjrContext(model, mj.mjtFontScale.mjFONTSCALE_150.value)
 
 # cam settings
-cam.azimuth = 60; cam.elevation = -20 ; cam.distance =  6
-cam.lookat  = np.array([ 0.0 , 0.0 , 0.0 ])
+cam.azimuth = 45; cam.elevation = -20 ; cam.distance =  25
+# cam.lookat  = np.array([ 0.0 , 0.0 , 0.0 ])
 cam.trackbodyid = 0
 
 # standing pose
 data.qpos[0] = 0
 data.qpos[1] = 0
-data.qpos[2] = 0
-data.qpos[3] = 0
+data.qpos[2] = 4
+data.qpos[3] = 0.707
+data.qpos[4] = 0
+data.qpos[5] = 0.707
+data.qpos[6] = 0
+data.qpos[7] = 0
+data.qpos[8] = 0
+data.qpos[9] = 0.5
+data.qpos[10] = 0.5
+
 time_prev    = 0
 
 # Run Simulation
 while not glfw.window_should_close(window):
     mj.mj_step(model, data)
-    # if (data.time - time_prev > 1.0/60.0):
-    #     mj.mj_step(model, data)
-    #     time_prev = data.time
+    if (data.time - time_prev > 1.0/10.0):
+        mj.mj_step(model, data)
+        time_prev = data.time
+        print("time" , data.time) 
+        print("sensor", data.sensordata)
+        print("data" , data.qpos)
 
-    print(data.time)
-    
 
     # get framebuffer viewport
     viewport_width, viewport_height = glfw.get_framebuffer_size(window)
     viewport = mj.MjrRect(0, 0, viewport_width, viewport_height)
 
     #print camera configuration (help to initialize the view)
-    if (printCamConfig ==1):
-        print('cam.azimuth =',cam.azimuth,';','cam.elevation =',cam.elevation,';','cam.distance = ',cam.distance)
-        print('cam.lookat =np.array([',cam.lookat[0],',',cam.lookat[1],',',cam.lookat[2],'])')
+    # if (printCamConfig ==1):
+    #     print('cam.azimuth =',cam.azimuth,';','cam.elevation =',cam.elevation,';','cam.distance = ',cam.distance)
+    #     print('cam.lookat =np.array([',cam.lookat[0],',',cam.lookat[1],',',cam.lookat[2],'])')
         # print('testing states', data.State )
 
     # Update scene and render
