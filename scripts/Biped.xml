@@ -11,15 +11,14 @@
         <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".1 .2 .3" rgb2=".2 .3 .4"/>
         <material name="grid" texture="grid" texrepeat="1 1" texuniform="true" reflectance=".2"/>
     </asset>
-
-
     
     <worldbody>
         <geom name="floor" size="0 0 .05" type="plane" material="grid" condim="3"/>
         <body name="torso1" pos="0 0 4" euler="0 90 0">
             <freejoint name="root"/>
             <geom type="capsule" size="0.2 0.4" rgba="0 0 1 1" mass="4"/>
-
+            <site name="torso1Site" type="box" group="0" rgba="1 1 1 0.5" size="0.005 0.005 0.005" />
+           
             <body name="torso2" pos="0.4 0 0" euler="0 0 0">
                 <geom type="capsule" size="0.2 0.4" rgba="0 0 1 1" mass="4"/>
 
@@ -40,9 +39,7 @@
                     
                         </body>
 
-                        
                     </body>
-            
 
                     <body name= "rightThigh" pos="0.8 0 0.4" euler="90 -90 0">
                         <joint name="hipRight" type="hinge" axis = "0 1 0" pos = "0 0 0.4"/>
@@ -69,12 +66,16 @@
     </worldbody>
 
    <actuator>
-        <motor name="torqueL0" joint="hipLeft"   gear="1" />
-        <motor name="torqueL1" joint="kneeLeft"  gear="1" />
-        <motor name="torqueR0" joint="hipRight"  gear="1" />
-        <motor name="torqueR1" joint="kneeRight"  gear="1" />
+        <motor name="torqueL0" joint="hipLeft"   gear ="1" />
+        <motor name="torqueL1" joint="kneeLeft"  gear ="1" />
+        <motor name="torqueR0" joint="hipRight"  gear ="1" />
+        <motor name="torqueR1" joint="kneeRight" gear ="1" />
    </actuator>
 
+    <sensor>
+        <framepos name="pose" objname="torso1" objtype="body" />
+        <velocimeter name="velo" site="torso1Site" />
+    </sensor>
     <!-- <sensor>
         <accelerometer name="imu_accel" site="torso1"/>
         <gyro name="imu_gyro"           site="torso1"/>
