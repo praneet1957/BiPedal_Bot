@@ -13,8 +13,7 @@ import matplotlib.pyplot as plt
 from policyNetwork import valueFunction
 from agent import actionFunction
 from env import env
-
-
+torch.set_grad_enabled(True)  # Context-manager 
 
 
 class Policy:
@@ -24,7 +23,7 @@ class Policy:
         self.agent      = agent()  #Either  policy
         self.stateValueNetwork = network()
         self.learningRate      = 0.001
-        self.batchTime  = 10
+        self.batchTime  = 100
         self.motors     = 4
         self.tiles      = 25
         self.discountFactor = 0.7
@@ -33,6 +32,12 @@ class Policy:
         self.networkOptimizer = Adam(self.stateValueNetwork.parameters(), lr=self.learningRate)     #define using Adam
         self.clip        = 0.1
         self.horizonTime = 4
+        self.saveHorizon = 4
+        self.logger = {
+			'actorClipLosses': [],     # losses of actor network in current iteration
+            'networkLosses':[],
+            'avgRewardperEps': []
+		}
         
         
         self.env = environment()
@@ -57,10 +62,6 @@ class Policy:
 
         # sample the action from distribution
 
-        # Act1 =  disMot1.sample()
-        # Act2 =  disMot2.sample()
-        # Act3 =  disMot3.sample()
-        # Act4 =  disMot4.sample()
         Action = disMotors.sample()
 
         # calculate log of probability of chosing the action
@@ -83,6 +84,7 @@ class Policy:
     #     # policy parameter update
 
 
+
     def evaluatePolicy(self):
         # the final part of code to run the policy
         globalTime = 0
@@ -92,6 +94,9 @@ class Policy:
         while(1):
             N = N +1 
             print("Current Iteration", N)
+            #GUI update
+            self.env.guiUpdate()
+
             #Storing data for updation
             data = []
             probActionList = []
@@ -111,6 +116,8 @@ class Policy:
                 data.append([state,action,probAction,stateNew,reward])
                 state = stateNew
                 probActionList.append(probAction)
+                self.env.guiUpdate()
+                
                 
 
             globalTime += self.batchTime
@@ -121,6 +128,8 @@ class Policy:
             # Value function
             
             traindata = []
+            valueFunctionTargetLis = []
+            advantageEstLis = []
             # Tile Coding 
 
             # Every state is a combination of 4 tiling for 4 motors
@@ -132,7 +141,8 @@ class Policy:
 
             for t in range(self.batchTime):
                 valueFunctionTarget = 0
-                state  = data[t][0]
+                state  = stateListTensor[t]
+
 
                 # if sumVisitedState == self.numStates:
                 #     break
@@ -147,22 +157,27 @@ class Policy:
                     reward = data[p][4]
                     valueFunctionTarget += reward*self.discountFactor**(p-t)
 
+
+
                 lastState = data[maxTime-1][0]
+                lastStateTensor = torch.tensor(lastState, dtype = torch.float)
                 
-                valueFunctionTarget += (self.stateValueNetwork.evaluate(lastState).item())*(self.discountFactor**(maxTime-t-1))
+                valueFunctionTarget += (self.stateValueNetwork.evaluate(lastStateTensor).item())*(self.discountFactor**(maxTime-t-1))
 
                 # need to see whether to normalize the advantageEst
 
-                advantageEst = valueFunctionTarget -  self.stateValueNetwork.evaluate(state).item()
+                advantageEst = torch.tensor(valueFunctionTarget, dtype= torch.float) -  self.stateValueNetwork.evaluate(state)
 
                 # append training data
-                traindata.append([valueFunctionTarget, advantageEst])
+                advantageEstLis.append(advantageEst)
+                valueFunctionTargetLis.append(valueFunctionTarget)
+                
 
-            traindata = np.array(traindata)
+
             
             #Reshape valuefunction as tensors
-            valueFunctionTargetTensor = torch.tensor(traindata[:,0], dtype=torch.float)
-            advantageEstTensor        = torch.tensor(traindata[:,1], dtype=torch.float)
+            valueFunctionTargetTensor = torch.tensor(valueFunctionTargetLis, dtype=torch.float)
+            advantageEstTensor        = torch.tensor(advantageEstLis, dtype=torch.float)
             probActionTensor          = torch.tensor(probActionList, dtype=torch.float)
 
 
@@ -171,6 +186,7 @@ class Policy:
 
                 epochData = [] 
                 probActionNewList = []
+                cumReward = 0
 
                 #initialize env
                 self.env.initialize()
@@ -185,6 +201,8 @@ class Policy:
                         epochData.append([state,actionNew,probActionNew,stateNewUpdate,rewardNew])
                         probActionNewList.append(probActionNew)
                         state = stateNewUpdate
+                        cumReward += rewardNew
+                        self.env.guiUpdate()
 
                     probActionTensorNew  = torch.tensor(probActionNewList, dtype=torch.float)
 
@@ -208,13 +226,18 @@ class Policy:
                 #Need to pass again through New netowrk
                 stateValueNetworkNew = []
                 for t in range(self.batchTime):
-                    state = data[t][0]
-                    stateValueNetworkNew.append(self.stateValueNetwork.evaluate(state).item())
+                    state = stateListTensor[t]
+                    stateValueNetworkNew.append(self.stateValueNetwork.evaluate(state))
+
+
 
                 stateValueNetworkNewTensor = torch.tensor(stateValueNetworkNew, dtype = torch.float)
                 lossValueNetwork  = lossValueFunction(stateValueNetworkNewTensor, valueFunctionTargetTensor)
 
                 #Use the defined optimizer to go back in both clip loss + value network loss
+                lossClip.requires_grad = True
+                lossValueNetwork.requires_grad = True
+
                 self.actorOptimizer.zero_grad()
                 lossClip.backward(retain_graph=True)
                 self.actorOptimizer.step()
@@ -223,10 +246,25 @@ class Policy:
                 lossValueNetwork.backward(retain_graph= True)
                 self.networkOptimizer.step()
 
+                # Log  loss
+                self.logger['actorClipLosses'].append(lossClip.item())
+                self.logger['networkLosses'].append(lossValueNetwork.item())
+                self.logger['avgRewardperEps'].append(cumReward/self.batchTime)
+
+            #save the weights
+            if N % self.saveHorizon == 0:
+                torch.save(self.agent.state_dict(), './ppo_actor.pth')
+                torch.save(self.stateValueNetwork.state_dict(), './ppo_valuefunction.pth')
+    
+
 
 # To Run the PPO we start here
 model = Policy(actionFunction, valueFunction, env)
+
+# Run Simulation
 model.evaluatePolicy()
+
+    
 
 
 

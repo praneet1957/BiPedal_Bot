@@ -30,8 +30,8 @@ context = mj.MjrContext(model, mj.mjtFontScale.mjFONTSCALE_150.value)
 
 # cam settings
 cam.azimuth = 45; cam.elevation = -20 ; cam.distance =  25
-# cam.lookat  = np.array([ 0.0 , 0.0 , 0.0 ])
-cam.trackbodyid = 0
+cam.lookat  = np.array([ data.qpos[0] , data.qpos[1] , data.qpos[2] ])
+# cam.trackbodyid = 0
 
 # standing pose
 data.qpos[0] = 0

@@ -15,7 +15,8 @@ class valueFunction(nn.Module):
 
     def evaluate(self, state):
         # convert state to tensor
-        stateTensor = torch.tensor(state, dtype=torch.float)
+        
+        stateTensor = state
 
         activation1 = F.leaky_relu(self.layer1(stateTensor),negative_slope=1)
         activation2 = F.relu(self.layer2(activation1))
